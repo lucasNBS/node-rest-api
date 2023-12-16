@@ -3,10 +3,13 @@ const express = require("express")
 const router = express.Router()
 const User = require("../models/user")
 
+// User storage ( local )
+const usersList = []
+
 // get all users
-router.get("/", async (req, res) => {
+router.get("/", (req, res) => {
   try {
-    const users = await User.find()
+    const users = usersList
     res.json(users)
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -14,22 +17,22 @@ router.get("/", async (req, res) => {
 })
 
 // get user by id
-router.get("/:id", getUser, async (req, res) => {
+router.get("/:id", getUser, (req, res) => {
   res.send(res.user)
 })
 
 // create user
-router.post("/", async (req, res) => {
+router.post("/", (req, res) => {
   const { username, email, password } = req.body
 
-  const user = new User({
-    username: username,
-    email: email,
-    password: password
-  })
+  const user = new User(
+    username,
+    email,
+    password
+  )
 
   try {
-    await user.save()
+    usersList.push(user)
     res.status(204).json({ message: "User created!" })
   } catch (err) {
     res.status(400).json({ message: err.message })
@@ -37,31 +40,34 @@ router.post("/", async (req, res) => {
 })
 
 // update user
-router.patch("/:id", getUser, async (req, res) => {
+router.patch("/:id", getUser, (req, res) => {
   const { username, email, password } = req.body
+  const { id } = req.params
 
-  if (username != null) {
-    res.user.username = username
+  const newUser = {
+    username: username ? username : res.user.username,
+    email: email ? email : res.user.email,
+    password: password ? password : res.user.password,
+    id: res.user.id
   }
-  if (email != null) {
-    res.user.email = email
-  }
-  if (password != null) {
-    res.user.password = password
-  }
+
+  const index = usersList.findIndex(user => user.id == id)
 
   try {
-    await res.user.save()
+    usersList.splice(index, 1, newUser)
     res.json({ message: `User ${res.user.id} updated` })
   } catch (err) {
-
+    res.status(400).json({ message: err.message })
   }
 })
 
 // delete user
-router.delete("/:id", getUser, async (req, res) => {
+router.delete("/:id", getUser, (req, res) => {
+  const { id } = req.params
+  const index = usersList.findIndex(user => user.id == id)
+
   try {
-    await res.user.deleteOne()
+    usersList.splice(index, 1)
     res.json({ message: `User ${res.user.id} deleted` })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -69,14 +75,14 @@ router.delete("/:id", getUser, async (req, res) => {
 })
 
 // midleware function to get user
-async function getUser(req, res, next) {
+function getUser(req, res, next) {
   const { id } = req.params
   let user
 
-  try {
-    user = await User.findById(id)
+  user = usersList.find(user => user.id == id)
 
-    if (user == null) {
+  try {
+    if (!user) {
       return res.status(404).json({ message: "User not found" })
     }
   } catch (err) {
